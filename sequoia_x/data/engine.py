@@ -114,6 +114,8 @@ class DataEngine:
 
     def sync_symbol(self, symbol: str) -> SyncResult:
         import akshare as ak
+        import time
+        import random
         from datetime import date, timedelta
 
         last_date = self._get_last_date(symbol)
@@ -130,17 +132,39 @@ class DataEngine:
 
             start = (last_date_obj + timedelta(days=1)).strftime("%Y%m%d")
 
-        try:
-            df = ak.stock_zh_a_hist(
-                symbol=symbol,
-                period="daily",
-                start_date=start,
-                end_date=today_str,
-                adjust="qfq",
-            )
-        except Exception as exc:
-            logger.warning(f"[{symbol}] akshare 拉取失败：{exc}")
-            return SyncResult(symbol=symbol, status="fail")
+        # ==========================================
+        # 🛡️ 核心防反爬装甲：随机休眠 + 遇断连重试
+        # ==========================================
+        df = None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # 伪装人类：每次请求前随机休眠 0.1 到 0.4 秒，打乱机械节奏
+                time.sleep(random.uniform(0.1, 0.4))
+
+                df = ak.stock_zh_a_hist(
+                    symbol=symbol,
+                    period="daily",
+                    start_date=start,
+                    end_date=today_str,
+                    adjust="qfq",
+                )
+                break  # 只要成功拉取，立刻跳出重试循环
+
+            except Exception as exc:
+                error_str = str(exc)
+                # 识别被拔网线的特征
+                if "RemoteDisconnected" in error_str or "Connection aborted" in error_str:
+                    if attempt < max_retries - 1:
+                        sleep_time = (attempt + 1) * 3  # 第一次被封睡3秒，第二次睡6秒
+                        logger.warning(f"[{symbol}] 触发反爬，蛰伏 {sleep_time} 秒后第 {attempt + 2} 次重试...")
+                        time.sleep(sleep_time)
+                        continue
+
+                # 如果是其他莫名其妙的错误，或者 3 次重试机会都用光了，认输跳过
+                logger.warning(f"[{symbol}] akshare 拉取最终失败：{error_str}")
+                return SyncResult(symbol=symbol, status="fail")
+        # ==========================================
 
         if df is None or df.empty:
             return SyncResult(symbol=symbol, status="skip")
