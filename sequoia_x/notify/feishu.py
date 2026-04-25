@@ -28,60 +28,22 @@ class FeishuNotifier:
         """
         self.settings = settings
 
-    def _get_xueqiu_mapping(self) -> dict[str, dict[str, str]]:
-        """
-        调用 akshare 获取雪球热门关注股票，构建代码→名称+前缀的映射字典。
-
-        Returns:
-            以6位纯数字代码为 key，value 为 {'prefix_code': 'SH600519', 'name': '贵州茅台'} 的字典。
-            若接口调用失败则返回空字典。
-        """
-        try:
-            import akshare as ak
-            df = ak.stock_hot_follow_xq(symbol="最热门")
-            mapping: dict[str, dict[str, str]] = {}
-            for _, row in df.iterrows():
-                full_code: str = str(row["股票代码"])          # e.g. "SH600519"
-                short_code = full_code[-6:]                    # e.g. "600519"
-                mapping[short_code] = {
-                    "prefix_code": full_code,
-                    "name": str(row["股票简称"]),
-                }
-            return mapping
-        except Exception as exc:
-            logger.warning(f"获取雪球映射失败，将使用默认格式：{exc}")
-            return {}
+    @staticmethod
+    def _to_xueqiu_code(code: str) -> str:
+        """将纯数字代码转为雪球格式：6开头→SH，4/8开头→BJ，其余→SZ。"""
+        if code.startswith("6"):
+            return f"SH{code}"
+        elif code.startswith(("4", "8")):
+            return f"BJ{code}"
+        return f"SZ{code}"
 
     def _build_card(self, symbols: list[str], strategy_name: str) -> dict:
-        """
-        构造飞书卡片消息 JSON，选股结果以雪球超链接横排展示。
-
-        Args:
-            symbols: 选股结果代码列表。
-            strategy_name: 策略名称，显示在卡片标题中。
-
-        Returns:
-            符合飞书卡片消息格式的字典。
-        """
         today = date.today().strftime("%Y-%m-%d")
-        xq_map = self._get_xueqiu_mapping()
 
         links: list[str] = []
         for code in symbols:
-            info = xq_map.get(code)
-            if info:
-                prefix_code = info["prefix_code"]
-                name = info["name"]
-            else:
-                # fallback：按首位数字判断交易所前缀
-                if code.startswith("6"):
-                    prefix_code = f"SH{code}"
-                elif code.startswith(("4", "8")):
-                    prefix_code = f"BJ{code}"
-                else:
-                    prefix_code = f"SZ{code}"
-                name = "未知"
-            links.append(f"[{name}](https://xueqiu.com/S/{prefix_code})")
+            xq_code = self._to_xueqiu_code(code)
+            links.append(f"[{xq_code}](https://xueqiu.com/S/{xq_code})")
 
         symbol_text = " ".join(links) if links else "（无选股结果）"
 
