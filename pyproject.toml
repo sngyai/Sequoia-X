@@ -9,6 +9,8 @@ dependencies = [
     "rich>=13.0",
     "pandas>=2.0",
     "requests>=2.31",
+    "infoway-sdk>=0.1.1",
+    "adata>=2.9.5",
 ]
 
 [project.optional-dependencies]

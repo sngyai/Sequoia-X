@@ -49,9 +49,10 @@ def main() -> None:
         logger = get_logger(__name__)
         logger.info("Sequoia-X-X V2 启动")
 
+        logger.info(f"当前配置: {settings}")
         # 3. 数据同步
         engine = DataEngine(settings)
-        if date.today().weekday() < 5:  # 周一到周五：0, 1, 2, 3, 4
+        if date.today().weekday() < 10:  # 周一到周五：0, 1, 2, 3, 4
             logger.info("工作日，开始增量同步最新数据...")
             all_symbols = engine.get_all_symbols()
             summary = engine.sync_all(all_symbols)

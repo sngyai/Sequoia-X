@@ -13,6 +13,8 @@ import pandas as pd
 
 from sequoia_x.core.config import Settings
 from sequoia_x.core.logger import get_logger
+from sequoia_x.data.adata import ADataSource
+from sequoia_x.data.infoway_data import Infoway
 
 logger = get_logger(__name__)
 
@@ -67,6 +69,9 @@ class DataEngine:
         """
         self.db_path: str = settings.db_path
         self.start_date: str = settings.start_date
+        self.range: int = settings.range
+        self.source: str = settings.source
+        self.infoway = Infoway(token=settings.infoway_token)
         self._init_db()
 
     def _init_db(self) -> None:
@@ -116,7 +121,7 @@ class DataEngine:
             )
         return df
 
-    def sync_symbol(self, symbol: str) -> SyncResult:
+    def sync_symbol_ak(self, symbol: str) -> SyncResult:
         last_date = self._get_last_date(symbol)
         today_date = date.today()
         today_str = today_date.strftime("%Y%m%d")
@@ -218,7 +223,71 @@ class DataEngine:
 
         return SyncResult(symbol=symbol, status="success", rows_added=rows)
 
-    def get_all_symbols(self) -> list[str]:
+    def sync_symbol_iw(self, symbol: str) -> SyncResult:
+        last_date = self._get_last_date(symbol)
+        today_date = date.today()
+
+        if last_date is not None and date.fromisoformat(last_date) >= today_date:
+            return SyncResult(symbol=symbol, status="skip")
+
+        time.sleep(1)
+        df = self.infoway.get_olhcv(symbol, count=self.range)
+
+        if df is None or df.empty:
+            return SyncResult(symbol=symbol, status="skip")
+
+        rows = len(df)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                df.to_sql(
+                    "stock_daily",
+                    conn,
+                    if_exists="append",
+                    index=False,
+                    method="multi",
+                )
+        except sqlite3.IntegrityError as exc:
+            logger.warning(f"[{symbol}] 写入时遇到重复数据，已跳过：{exc}")
+
+        return SyncResult(symbol=symbol, status="success", rows_added=rows)
+
+    def sync_symbol_adata(self, symbol: str):
+        last_date = self._get_last_date(symbol)
+        today_date = date.today()
+
+        if last_date is not None and date.fromisoformat(last_date) >= today_date:
+            return SyncResult(symbol=symbol, status="skip")
+
+        df = ADataSource.get_ohlcv(symbol, start_date=self.start_date)
+
+        if df.empty:
+            return SyncResult(symbol=symbol, status="skip")
+
+        rows = len(df)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                df.to_sql(
+                    "stock_daily",
+                    conn,
+                    if_exists="append",
+                    index=False,
+                    method="multi",
+                )
+        except sqlite3.IntegrityError as exc:
+            logger.warning(f"[{symbol}] 写入时遇到重复数据，已跳过：{exc}")
+
+        return SyncResult(symbol=symbol, status="success", rows_added=rows)
+
+    def sync_symbol(self, symbol: str) -> SyncResult:
+        match self.source:
+            case "adata":
+                return self.sync_symbol_adata(symbol)
+            case "infoway":
+                return self.sync_symbol_iw(symbol)
+            case _:
+                return self.sync_symbol_ak(symbol)
+
+    def get_all_symbols_ak(self) -> list[str]:
         """
         从 akshare 获取全市场 A 股 symbol 列表（轻量接口）。
         包含网络重试机制，防止服务器掐断连接。
@@ -226,10 +295,6 @@ class DataEngine:
         Returns:
             股票代码字符串列表，如 ['000001', '000002', ...]。
         """
-        import time
-
-        import akshare as ak
-
         max_retries = 5
         for attempt in range(max_retries):
             try:
@@ -245,6 +310,21 @@ class DataEngine:
 
         logger.error("获取全市场列表最终失败！请检查网络连接。")
         return []
+
+    def get_all_symbols_iw(self) -> list[str]:
+        return Infoway.load_stock_codes_cn()
+
+    def get_all_symbols_adata(self) -> list[str]:
+        return ADataSource.load_stock_codes_cn()
+
+    def get_all_symbols(self) -> list[str]:
+        match self.source:
+            case "adata":
+                return self.get_all_symbols_adata()
+            case "infoway":
+                return self.get_all_symbols_iw()
+            case _:
+                return self.get_all_symbols_ak()
 
     def get_local_symbols(self) -> list[str]:
         """

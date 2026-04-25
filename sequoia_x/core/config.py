@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     db_path: str = "data/sequoia_v2.db"
     start_date: str = "2024-01-01"
+    range: int = 365
+    source: str = "akshare"  # 可选 akshare/infoway
+    infoway_token: str = ""
     feishu_webhook_url: str  # 必填字段，缺失时抛出 ValidationError
     strategy_webhooks: dict[str, str] = {}
 
@@ -19,8 +22,9 @@ class Settings(BaseSettings):
     @classmethod
     def settings_customise_sources(cls, settings_cls, **kwargs):  # type: ignore[override]
         """扩展配置源，支持从环境变量中扫描 STRATEGY_WEBHOOK_ 前缀的键。"""
-        from pydantic_settings import EnvSettingsSource
         import os
+
+        from pydantic_settings import EnvSettingsSource
 
         sources = super().settings_customise_sources(settings_cls, **kwargs)
 
@@ -29,7 +33,7 @@ class Settings(BaseSettings):
         webhooks: dict[str, str] = {}
         for key, value in os.environ.items():
             if key.upper().startswith(prefix):
-                strategy_key = key[len(prefix):].lower()
+                strategy_key = key[len(prefix) :].lower()
                 webhooks[strategy_key] = value
 
         # 注入到初始化数据中（通过 init_kwargs source）
@@ -50,7 +54,7 @@ class Settings(BaseSettings):
         webhooks: dict[str, str] = dict(self.strategy_webhooks)
         for key, value in os.environ.items():
             if key.upper().startswith(prefix):
-                strategy_key = key[len(prefix):].lower()
+                strategy_key = key[len(prefix) :].lower()
                 webhooks[strategy_key] = value
 
         # 使用 object.__setattr__ 绕过 pydantic 的不可变保护
