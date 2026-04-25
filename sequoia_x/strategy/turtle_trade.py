@@ -28,7 +28,7 @@ class TurtleTradeStrategy(BaseStrategy):
         遍历全市场，返回满足海龟突破条件的股票代码列表。
         """
         symbols = self.engine.get_local_symbols()
-        selected: list[str] = []
+        candidates: list[tuple[str, float]] = []  # (symbol, 涨幅%)
 
         for symbol in symbols:
             try:
@@ -55,11 +55,16 @@ class TurtleTradeStrategy(BaseStrategy):
                 is_up = last["close"] > prev["close"]    # 必须是真涨，不能是假阳线
 
                 if breakout and liquid and is_yang and is_up:
-                    selected.append(symbol)
+                    change_pct = (last["close"] - prev["close"]) / prev["close"] * 100
+                    candidates.append((symbol, change_pct))
 
             except Exception as exc:
                 logger.warning(f"[{symbol}] TurtleTradeStrategy 计算失败：{exc}")
                 continue
+
+        # 按涨幅从大到小排序
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        selected = [sym for sym, _ in candidates]
 
         logger.info(f"TurtleTradeStrategy 选出 {len(selected)} 只股票")
         return selected
