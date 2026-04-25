@@ -37,13 +37,30 @@ class FeishuNotifier:
             return f"BJ{code}"
         return f"SZ{code}"
 
+    @staticmethod
+    def _get_stock_names(symbols: list[str]) -> dict[str, str]:
+        """通过 baostock 批量查询股票名称，返回 {code: name} 映射。"""
+        import baostock as bs
+        bs.login()
+        mapping = {}
+        for code in symbols:
+            prefix = "sh" if code.startswith(("6", "9")) else "sz"
+            rs = bs.query_stock_basic(code=f"{prefix}.{code}")
+            while rs.next():
+                row = rs.get_row_data()
+                mapping[code] = row[1]  # 第2个字段是股票名称
+        bs.logout()
+        return mapping
+
     def _build_card(self, symbols: list[str], strategy_name: str) -> dict:
         today = date.today().strftime("%Y-%m-%d")
+        names = self._get_stock_names(symbols)
 
         links: list[str] = []
         for code in symbols:
             xq_code = self._to_xueqiu_code(code)
-            links.append(f"[{xq_code}](https://xueqiu.com/S/{xq_code})")
+            name = names.get(code, xq_code)
+            links.append(f"[{name}](https://xueqiu.com/S/{xq_code})")
 
         symbol_text = " ".join(links) if links else "（无选股结果）"
 
