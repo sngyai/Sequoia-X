@@ -4,12 +4,14 @@
 """
 
 import sys
+
 from dotenv import load_dotenv
+
 load_dotenv()
 
+import socket
 from datetime import date
 
-import socket
 socket.setdefaulttimeout(10.0)
 
 from sequoia_x.core.config import get_settings
@@ -20,9 +22,9 @@ from sequoia_x.strategy.base import BaseStrategy
 from sequoia_x.strategy.high_tight_flag import HighTightFlagStrategy
 from sequoia_x.strategy.limit_up_shakeout import LimitUpShakeoutStrategy
 from sequoia_x.strategy.ma_volume import MaVolumeStrategy
+from sequoia_x.strategy.rps_breakout import RpsBreakoutStrategy
 from sequoia_x.strategy.turtle_trade import TurtleTradeStrategy
 from sequoia_x.strategy.uptrend_limit_down import UptrendLimitDownStrategy
-from sequoia_x.strategy.rps_breakout import RpsBreakoutStrategy
 
 
 def main() -> None:
@@ -58,7 +60,9 @@ def main() -> None:
                 f"跳过: {summary.skipped} | 失败: {summary.failed}"
             )
         else:
-            logger.info("🌟 今天是周末，A股休市！直接跳过网络拉取，使用本地最新数据极速调试策略！")
+            logger.info(
+                "🌟 今天是周末，A股休市！直接跳过网络拉取，使用本地最新数据极速调试策略！"
+            )
 
         # 4. 策略列表（新增策略在此追加即可）
         strategies: list[BaseStrategy] = [
@@ -74,7 +78,7 @@ def main() -> None:
 
         # 5. 遍历策略，有结果则推送至对应机器人
         for strategy in strategies:
-            strategy_name = type(strategy).__name__
+            strategy_name = strategy.name
             logger.info(f"执行策略：{strategy_name}")
 
             selected: list[str] = strategy.run()
@@ -95,6 +99,7 @@ def main() -> None:
             _logger.exception("主流程发生未捕获异常，程序终止")
         except Exception:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

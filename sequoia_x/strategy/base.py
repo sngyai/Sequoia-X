@@ -18,6 +18,7 @@ class BaseStrategy(ABC):
     """
 
     webhook_key: str = "default"
+    name: str = "默认策略"
 
     def __init__(self, engine: DataEngine, settings: Settings) -> None:
         """

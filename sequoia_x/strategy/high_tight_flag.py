@@ -21,6 +21,7 @@ class HighTightFlagStrategy(BaseStrategy):
     """
 
     webhook_key: str = "flag"
+    name: str = "高位紧旗形态策略"
     _MIN_BARS: int = 40  # 至少需要 40 根 K 线
 
     def run(self) -> list[str]:

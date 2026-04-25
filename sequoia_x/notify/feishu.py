@@ -38,11 +38,12 @@ class FeishuNotifier:
         """
         try:
             import akshare as ak
+
             df = ak.stock_hot_follow_xq(symbol="最热门")
             mapping: dict[str, dict[str, str]] = {}
             for _, row in df.iterrows():
-                full_code: str = str(row["股票代码"])          # e.g. "SH600519"
-                short_code = full_code[-6:]                    # e.g. "600519"
+                full_code: str = str(row["股票代码"])  # e.g. "SH600519"
+                short_code = full_code[-6:]  # e.g. "600519"
                 mapping[short_code] = {
                     "prefix_code": full_code,
                     "name": str(row["股票简称"]),
@@ -91,7 +92,7 @@ class FeishuNotifier:
                 "header": {
                     "title": {
                         "tag": "plain_text",
-                        "content": f"📈 Sequoia-X 选股播报 | {strategy_name}",
+                        "content": f"📈  选股播报 | {strategy_name}",
                     },
                     "template": "blue",
                 },

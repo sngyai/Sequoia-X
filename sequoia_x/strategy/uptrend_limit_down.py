@@ -21,6 +21,7 @@ class UptrendLimitDownStrategy(BaseStrategy):
     """
 
     webhook_key: str = "limit_down"
+    name: str = "上升趋势跌停反转策略"
     _MIN_BARS: int = 60  # 至少需要 60 根 K 线（60日均线）
 
     def run(self) -> list[str]:
@@ -47,7 +48,11 @@ class UptrendLimitDownStrategy(BaseStrategy):
                 prev = df.iloc[-2]  # 昨日
                 today = df.iloc[-1]  # 今日
 
-                if pd.isna(prev["ma20"]) or pd.isna(prev["ma60"]) or pd.isna(today["vol_ma20"]):
+                if (
+                    pd.isna(prev["ma20"])
+                    or pd.isna(prev["ma60"])
+                    or pd.isna(today["vol_ma20"])
+                ):
                     continue
 
                 # 条件 1：上升趋势（昨日均线多头排列）

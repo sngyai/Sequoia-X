@@ -20,6 +20,7 @@ class MaVolumeStrategy(BaseStrategy):
     """
 
     webhook_key: str = "ma_volume"
+    name: str = "均线放量突破策略"
 
     def run(self) -> list[str]:
         """
@@ -46,10 +47,7 @@ class MaVolumeStrategy(BaseStrategy):
                 last = df.iloc[-1]
                 prev = df.iloc[-2]
 
-                golden_cross = (
-                    prev["ma5"] < prev["ma20"]
-                    and last["ma5"] > last["ma20"]
-                )
+                golden_cross = prev["ma5"] < prev["ma20"] and last["ma5"] > last["ma20"]
                 volume_surge = last["volume"] > last["vol_ma20"] * 1.5
 
                 if golden_cross and volume_surge:

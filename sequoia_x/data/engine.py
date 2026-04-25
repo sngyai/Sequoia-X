@@ -1,10 +1,14 @@
 """数据引擎模块：负责 SQLite 行情数据存储与 akshare 增量同步。"""
 
+import random
 import sqlite3
+import time
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
+import akshare as ak
 import pandas as pd
 
 from sequoia_x.core.config import Settings
@@ -113,11 +117,6 @@ class DataEngine:
         return df
 
     def sync_symbol(self, symbol: str) -> SyncResult:
-        import akshare as ak
-        import time
-        import random
-        from datetime import date, timedelta
-
         last_date = self._get_last_date(symbol)
         today_date = date.today()
         today_str = today_date.strftime("%Y%m%d")
@@ -140,7 +139,8 @@ class DataEngine:
         for attempt in range(max_retries):
             try:
                 # 伪装人类：每次请求前随机休眠 0.1 到 0.4 秒，打乱机械节奏
-                time.sleep(random.uniform(0.1, 0.4))
+                # time.sleep(random.uniform(0.1, 0.4))
+                time.sleep(random.uniform(0.8, 2.0))
 
                 df = ak.stock_zh_a_hist(
                     symbol=symbol,
@@ -149,15 +149,22 @@ class DataEngine:
                     end_date=today_str,
                     adjust="qfq",
                 )
+                logger.info(f"拉取{symbol}成功")
                 break  # 只要成功拉取，立刻跳出重试循环
 
             except Exception as exc:
                 error_str = str(exc)
                 # 识别被拔网线的特征
-                if "RemoteDisconnected" in error_str or "Connection aborted" in error_str:
+                if (
+                    "RemoteDisconnected" in error_str
+                    or "Connection aborted" in error_str
+                ):
                     if attempt < max_retries - 1:
-                        sleep_time = (attempt + 1) * 3  # 第一次被封睡3秒，第二次睡6秒
-                        logger.warning(f"[{symbol}] 触发反爬，蛰伏 {sleep_time} 秒后第 {attempt + 2} 次重试...")
+                        # sleep_time = (attempt + 1) * 3  # 第一次被封睡3秒，第二次睡6秒
+                        sleep_time = (2**attempt) + random.uniform(0, 1)
+                        logger.warning(
+                            f"[{symbol}] 触发反爬，蛰伏 {sleep_time} 秒后第 {attempt + 2} 次重试..."
+                        )
                         time.sleep(sleep_time)
                         continue
 
@@ -183,7 +190,16 @@ class DataEngine:
         df["symbol"] = symbol
 
         # 只保留需要的列，向量化操作，严禁 iterrows()
-        keep_cols = ["symbol", "date", "open", "high", "low", "close", "volume", "turnover"]
+        keep_cols = [
+            "symbol",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "turnover",
+        ]
         df = df[[c for c in keep_cols if c in df.columns]]
         df["date"] = df["date"].astype(str)
 
@@ -210,13 +226,16 @@ class DataEngine:
         Returns:
             股票代码字符串列表，如 ['000001', '000002', ...]。
         """
-        import akshare as ak
         import time
+
+        import akshare as ak
 
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                logger.info(f"正在获取全市场股票列表 (第 {attempt + 1}/{max_retries} 次尝试)...")
+                logger.info(
+                    f"正在获取全市场股票列表 (第 {attempt + 1}/{max_retries} 次尝试)..."
+                )
                 df = ak.stock_info_a_code_name()
                 logger.info(f"成功获取股票列表，共 {len(df)} 只股票。")
                 return df["code"].astype(str).tolist()
@@ -235,9 +254,7 @@ class DataEngine:
             本地已存在数据的股票代码列表。
         """
         with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT symbol FROM stock_daily"
-            ).fetchall()
+            rows = conn.execute("SELECT DISTINCT symbol FROM stock_daily").fetchall()
         return [row[0] for row in rows]
 
     def sync_all(self, symbols: list[str]) -> SyncSummary:
