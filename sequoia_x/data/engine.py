@@ -224,7 +224,8 @@ class DataEngine:
         return SyncResult(symbol=symbol, status="success", rows_added=rows)
 
     def sync_symbol_iw(self, symbol: str) -> SyncResult:
-        last_date = self._get_last_date(symbol)
+        last_date = self._get_last_date(symbol.split(".")[0])
+        # logger.info(f"{symbol} updated at: {last_date} ")
         today_date = date.today()
         count = self.range
 
@@ -232,6 +233,7 @@ class DataEngine:
             count = self.range
         else:
             if date.fromisoformat(last_date) >= today_date:
+                # logger.info(f"{symbol} 已是最新，跳过")
                 return SyncResult(symbol=symbol, status="skip")
             last_date_obj = date.fromisoformat(last_date)
             diff_days = (today_date - last_date_obj).days
