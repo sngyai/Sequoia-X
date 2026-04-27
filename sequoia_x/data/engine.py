@@ -226,12 +226,19 @@ class DataEngine:
     def sync_symbol_iw(self, symbol: str) -> SyncResult:
         last_date = self._get_last_date(symbol)
         today_date = date.today()
+        count = self.range
 
-        if last_date is not None and date.fromisoformat(last_date) >= today_date:
-            return SyncResult(symbol=symbol, status="skip")
+        if last_date is None:
+            count = self.range
+        else:
+            if date.fromisoformat(last_date) >= today_date:
+                return SyncResult(symbol=symbol, status="skip")
+            last_date_obj = date.fromisoformat(last_date)
+            diff_days = (today_date - last_date_obj).days
+            count = max(diff_days + 5, 10)
 
         time.sleep(1)
-        df = self.infoway.get_olhcv(symbol, count=self.range)
+        df = self.infoway.get_olhcv(symbol, count)
 
         if df is None or df.empty:
             return SyncResult(symbol=symbol, status="skip")

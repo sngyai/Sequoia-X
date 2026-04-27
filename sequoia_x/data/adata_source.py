@@ -28,17 +28,12 @@ class ADataSource:
         if df.empty:
             return pd.DataFrame()
 
-        rename_map = {
-            "trade_date": "date",
-            "open": "open",
-            "high": "high",
-            "low": "low",
-            "close": "close",
-            "volume": "volume",
-            "turnover_ratio": "turnover",
-        }
-
-        df = df.rename(columns=rename_map)
+        df = df.rename(
+            columns={
+                "trade_date": "date",
+                "amount": "turnover",
+            }
+        )
 
         df["symbol"] = symbol
         df["date"] = df["date"].astype(str)
