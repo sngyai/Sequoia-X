@@ -35,7 +35,7 @@ class ADataSource:
             "low": "low",
             "close": "close",
             "volume": "volume",
-            "turnover": "turnover",
+            "turnover_ratio": "turnover",
         }
 
         df = df.rename(columns=rename_map)
@@ -55,3 +55,10 @@ class ADataSource:
         ]
 
         return df[[c for c in keep_cols if c in df.columns]]
+
+
+if __name__ == "__main__":
+    res_df = adata.stock.market.get_market(
+        stock_code="000001", k_type=1, start_date="2025-04-20"
+    )
+    print(res_df)

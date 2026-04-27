@@ -13,8 +13,8 @@ import pandas as pd
 
 from sequoia_x.core.config import Settings
 from sequoia_x.core.logger import get_logger
-from sequoia_x.data.adata import ADataSource
-from sequoia_x.data.infoway_data import Infoway
+from sequoia_x.data.adata_source import ADataSource
+from sequoia_x.data.infoway_source import Infoway
 
 logger = get_logger(__name__)
 

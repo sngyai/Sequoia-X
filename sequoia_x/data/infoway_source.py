@@ -25,7 +25,7 @@ class KlineItem(BaseModel):
         df = pd.DataFrame(
             [
                 {
-                    "symbol": self.s,
+                    "symbol": self.s.split(".")[0],
                     "date": bar.t,
                     "open": bar.o,
                     "high": bar.h,
@@ -37,7 +37,12 @@ class KlineItem(BaseModel):
                 for bar in self.respList
             ]
         )
-        df["date"] = pd.to_datetime(df["date"], unit="s").dt.strftime("%Y-%m-%d")
+        # infoway utc时区转换
+        df["date"] = (
+            pd.to_datetime(df["date"], unit="s", utc=True)
+            .dt.tz_convert("Asia/Shanghai")
+            .dt.strftime("%Y-%m-%d")
+        )
         df = df.sort_values("date").reset_index(drop=True)
         return df
 
@@ -76,24 +81,3 @@ class Infoway:
         # print(f"raw data: {raw}")
         parsed = [KlineItem.model_validate(item) for item in raw]
         return [item.to_dataframe() for item in parsed]
-
-
-if __name__ == "__main__":
-    TOKEN = "54f55104a199417cb134e3e652617451-infoway"
-
-    api = Infoway(TOKEN)
-    # df = api.get_olhcv("600000.SH")
-    # print(df)
-    # dfs = api.get_olhcv_list(
-    #     "600000.SH,000001.SZ",
-    #     count=10,
-    # )
-
-    # A股示例
-    stocks = api.load_stock_codes_cn()
-
-    print(stocks)
-    print(len(stocks))
-    # for df in dfs:
-    #     print(df)
-    #     print("-" * 80)
