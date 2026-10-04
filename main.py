@@ -1,12 +1,15 @@
 """Sequoia-X V2 主程序入口。
 
-两种运行模式：
+运行模式：
   python main.py               # 日常模式：8进程增量补数据 + 跑策略 + 飞书推送（2~3分钟）
   python main.py --backfill    # 回填模式：baostock 拉全市场历史K线（首次/补数据用，约12分钟）
+  python main.py --scan-pivots # 本地日K proxy 研究筛选，输出评分 JSON
 """
 
 import argparse
+import json
 import sys
+from contextlib import redirect_stdout
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -15,11 +18,13 @@ from datetime import date
 import socket
 socket.setdefaulttimeout(10.0)
 
-from sequoia_x.core.config import get_settings
+from sequoia_x.core.config import Settings, get_settings
 from sequoia_x.core.logger import get_logger
 from sequoia_x.data.engine import DataEngine
 from sequoia_x.notify.feishu import FeishuNotifier
 from sequoia_x.strategy.base import BaseStrategy
+from sequoia_x.strategy.failed_new_low import FailedNewLowStrategy
+from sequoia_x.strategy.hidden_pivot import HiddenPivotStrategy
 from sequoia_x.strategy.high_tight_flag import HighTightFlagStrategy
 from sequoia_x.strategy.limit_up_shakeout import LimitUpShakeoutStrategy
 from sequoia_x.strategy.ma_volume import MaVolumeStrategy
@@ -36,11 +41,41 @@ def main() -> None:
         action="store_true",
         help="回填模式：通过 baostock 拉取全市场历史 K 线（约12分钟）",
     )
+    parser.add_argument(
+        "--scan-pivots", action="store_true",
+        help="仅从本地日K筛选 FailedNewLow/HiddenPivot，输出评分 JSON，不同步或推送",
+    )
+    parser.add_argument("--as-of", help="本地筛选的历史截止日期 YYYY-MM-DD（需 --scan-pivots）")
     args = parser.parse_args()
+    if args.as_of and not args.scan_pivots:
+        parser.error("--as-of requires --scan-pivots")
+    if args.scan_pivots and args.backfill:
+        parser.error("--scan-pivots and --backfill are mutually exclusive")
+    if args.as_of:
+        try:
+            args.as_of = date.fromisoformat(args.as_of).isoformat()
+        except ValueError:
+            parser.error("--as-of must be YYYY-MM-DD")
 
     try:
         # 1. 初始化配置
-        settings = get_settings()
+        settings = Settings(feishu_webhook_url="") if args.scan_pivots else get_settings()
+
+        if args.scan_pivots:
+            # Preserve the existing logger, while keeping machine-readable stdout pure JSON.
+            with redirect_stdout(sys.stderr):
+                engine = DataEngine(settings)
+                scanners = [
+                    FailedNewLowStrategy(engine, settings, as_of=args.as_of),
+                    HiddenPivotStrategy(engine, settings, as_of=args.as_of),
+                ]
+                results = {type(scanner).__name__: scanner.run_scored() for scanner in scanners}
+            print(json.dumps({
+                "mode": "daily_proxy_research", "as_of": scanners[0].scan_date,
+                "strategies": results,
+                "diagnostics": scanners[0].diagnostics,
+            }, ensure_ascii=False, indent=2, allow_nan=False))
+            return
 
         # 2. 初始化日志
         logger = get_logger(__name__)
@@ -71,6 +106,8 @@ def main() -> None:
             UptrendLimitDownStrategy(engine=engine, settings=settings),
             RpsBreakoutStrategy(engine=engine, settings=settings),
             PrivatePlacementStrategy(engine=engine, settings=settings),
+            FailedNewLowStrategy(engine=engine, settings=settings),
+            HiddenPivotStrategy(engine=engine, settings=settings),
         ]
 
         notifier = FeishuNotifier(settings)

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS stock_daily (
     low      REAL,
     close    REAL,
     volume   REAL,
-    turnover REAL,
+    turnover REAL, -- Legacy name: traded amount in CNY, NOT turnover rate.
     UNIQUE (symbol, date)
 );
 """
@@ -78,13 +78,23 @@ class DataEngine:
         return row[0] if row and row[0] else None
 
     def get_ohlcv(self, symbol: str) -> pd.DataFrame:
+        """Read daily bars; amount is CNY, turnover is its legacy compatibility alias."""
         with sqlite3.connect(self.db_path) as conn:
             df = pd.read_sql(
-                "SELECT * FROM stock_daily WHERE symbol = ? ORDER BY date",
+                "SELECT *, turnover AS amount FROM stock_daily WHERE symbol = ? ORDER BY date",
                 conn,
                 params=(symbol,),
             )
         return df
+
+    def get_latest_date(self, as_of: str | None = None) -> str | None:
+        """Latest stored market date, optionally bounded for a causal historical scan."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT MAX(date) FROM stock_daily WHERE (? IS NULL OR date <= ?)",
+                (as_of, as_of),
+            ).fetchone()
+        return row[0] if row else None
 
     @staticmethod
     def _to_baostock_code(symbol: str) -> str:

@@ -14,11 +14,12 @@ Sequoia-X V2 是面向 A 股市场的量化选股系统，基于现代 Python �
 
 ---
 
-## 两种运行模式
+## 运行模式
 
 ```bash
 python main.py               # 日常模式：8进程增量补数据 + 跑策略 + 飞书推送（2~3分钟）
 python main.py --backfill     # 回填模式：全市场历史K线一次性灌入（约12分钟）
+python main.py --scan-pivots  # 本地日K研究筛选：评分 JSON，不更新数据或推送
 ```
 
 ---
@@ -33,6 +34,11 @@ python main.py --backfill     # 回填模式：全市场历史K线一次性灌�
 | **LimitUpShakeout** | 涨停洗盘回踩确认 |
 | **UptrendLimitDown** | 上升趋势中的跌停反包 |
 | **RpsBreakout** | 欧奈尔 RPS 相对强度突破 |
+| **FailedNewLow** | 负向冲击后拒绝新低，输出日K proxy FailureScore |
+| **HiddenPivot** | 拒绝新低后，压缩区间放量突破，输出 HiddenPivotScore |
+
+新策略的公式、默认阈值、数据门槛、历史回放命令及示例见
+[日K隐秘轴心/拒绝新低 V1](docs/daily-pivot.md)。评分是研究排序依据。
 
 ---
 
@@ -115,6 +121,8 @@ Sequoia-X/
 - **数据源**：[baostock](http://baostock.com)（免费、无需注册、无限流）
 - **复权方式**：后复权（hfq）— 历史价格不变，适合增量存储，避免除权导致数据错乱
 - **存储**：本地 SQLite（`data/sequoia_v2.db`），可直接拷贝到其他机器使用
+- **成交额字段**：SQLite 的旧列 `turnover` 存成交额（元）；读取接口增加 `amount`
+  同值别名供新策略使用。它不代表换手率，旧库和旧策略无需迁移。
 - **日常增量**：8 进程并行通过 baostock 拉取，2~3 分钟完成全市场更新
 
 ---
