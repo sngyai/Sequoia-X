@@ -33,6 +33,7 @@ python main.py --backfill     # 回填模式：全市场历史K线一次性灌�
 | **LimitUpShakeout** | 涨停洗盘回踩确认 |
 | **UptrendLimitDown** | 上升趋势中的跌停反包 |
 | **RpsBreakout** | 欧奈尔 RPS 相对强度突破 |
+| **PrivatePlacement** | 定增公告监控 |
 
 ---
 
